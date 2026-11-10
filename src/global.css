@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+/*
+ * Design tokens
+ * -------------
+ * Colors are declared per theme in `@layer theme` below. They are semantic
+ * tokens (background, card, foreground, primary...) instead of raw color names,
+ * so components never need to know which palette is active.
+ *
+ * Typography, radii and spacing tokens live in `@theme` so Tailwind generates
+ * utilities such as `text-display`, `rounded-card` or `min-h-12`.
+ */
+@theme {
+  --text-display: 38px;
+  --text-display--line-height: 42px;
+  --text-display--letter-spacing: -1.1px;
+
+  --text-title: 28px;
+  --text-title--line-height: 34px;
+  --text-title--letter-spacing: -0.6px;
+
+  --text-heading: 20px;
+  --text-heading--line-height: 26px;
+  --text-heading--letter-spacing: -0.25px;
+
+  --text-subtitle: 16px;
+  --text-subtitle--line-height: 24px;
+
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+
+  --text-overline: 11px;
+  --text-overline--line-height: 14px;
+  --text-overline--letter-spacing: 0.8px;
+
+  --radius-button: 14px;
+  --radius-input: 14px;
+  --radius-card: 20px;
+  --radius-badge: 999px;
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --color-background: #f7f7fa;
+      --color-background-subtle: #f0f1f5;
+      --color-foreground: #11131a;
+      --color-foreground-secondary: #3f4451;
+      --color-muted-foreground: #626875;
+      --color-card: #ffffff;
+      --color-card-muted: #f1f2f6;
+      --color-secondary: #eef0f5;
+      --color-secondary-foreground: #1f2430;
+      --color-primary: #4f46e5;
+      --color-primary-foreground: #ffffff;
+      --color-accent: #7c3aed;
+      --color-accent-soft: #ede9fe;
+      --color-border: #e2e4ea;
+      --color-border-strong: #cfd2db;
+      --color-input: #ffffff;
+      --color-input-border: #dde0e8;
+      --color-ring: #6366f1;
+      --color-danger: #dc2626;
+      --color-danger-soft: #fef2f2;
+      --color-success: #059669;
+      --color-warning: #d97706;
+    }
+
+    @variant dark {
+      --color-background: #0a0b0f;
+      --color-background-subtle: #101218;
+      --color-foreground: #f4f5f7;
+      --color-foreground-secondary: #c6cad3;
+      --color-muted-foreground: #8e94a3;
+      --color-card: #12141b;
+      --color-card-muted: #171a22;
+      --color-secondary: #1b1e27;
+      --color-secondary-foreground: #e8eaf0;
+      --color-primary: #5b5fe9;
+      --color-primary-foreground: #ffffff;
+      --color-accent: #a78bfa;
+      --color-accent-soft: #211c33;
+      --color-border: #23262f;
+      --color-border-strong: #323643;
+      --color-input: #12141b;
+      --color-input-border: #272b35;
+      --color-ring: #818cf8;
+      --color-danger: #f87171;
+      --color-danger-soft: #2a1417;
+      --color-success: #34d399;
+      --color-warning: #fbbf24;
+    }
+  }
+}
