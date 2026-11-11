@@ -66,6 +66,8 @@ export function Button({
   accessibilityRole,
   accessibilityLabel,
   accessibilityState,
+  onPressIn,
+  onPressOut,
   ...pressableProps
 }: ButtonProps) {
   const { colors } = useAppTheme();
@@ -76,6 +78,8 @@ export function Button({
   return (
     <Pressable
       {...pressableProps}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       accessibilityRole={accessibilityRole ?? 'button'}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{
@@ -97,6 +101,7 @@ export function Button({
           : pressed
             ? layout.pressedOpacity
             : 1,
+        transform: [{ scale: pressed && !isDisabled ? 0.98 : 1 }],
       })}
     >
       {loading ? (

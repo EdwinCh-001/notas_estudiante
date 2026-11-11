@@ -14,5 +14,22 @@ export default function ProtectedGroupLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+      <Stack.Screen name="home" options={{ animation: 'none' }} />
+      <Stack.Screen name="notes/new" />
+      <Stack.Screen name="notes/[id]" />
+      <Stack.Screen name="notes/[id]/edit" />
+      <Stack.Screen name="categories/new" />
+      <Stack.Screen name="profile/edit" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="change-password" />
+    </Stack>
+  );
 }

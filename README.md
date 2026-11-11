@@ -1,8 +1,7 @@
 # Student Notes
 
-Aplicación móvil de notas personales para estudiantes. Incluye la base visual
-y autenticación Email/Password con Supabase. El CRUD de notas aún no está
-implementado.
+Aplicación móvil personal de notas con autenticación Supabase, dashboard,
+búsqueda, categorías y CRUD de notas.
 
 La app está diseñada **mobile first y Android first** para verse correctamente
 en dispositivos de 360dp a 430dp de ancho. En tablets el contenido se limita a
@@ -30,6 +29,8 @@ src/
 ├── app/                          # Rutas de Expo Router
 │   ├── _layout.tsx               # Providers, tema, StatusBar y Stack raíz
 │   ├── index.tsx                 # Redirección a /(auth)/welcome
+│   ├── auth/
+│   │   └── callback.tsx          # Callback de OAuth PKCE
 │   ├── (auth)/
 │   │   ├── _layout.tsx            # Redirección según sesión
 │   │   ├── welcome.tsx
@@ -38,16 +39,26 @@ src/
 │   │   ├── forgot-password.tsx
 │   │   └── reset-password.tsx
 │   └── (protected)/
-│       ├── _layout.tsx
-│       └── home.tsx              # Destino temporal de "Comenzar"
+│       ├── _layout.tsx            # Guardia de sesión y stack privado
+│       ├── home.tsx                # Mantiene el destino previo y abre Inicio
+│       ├── (tabs)/                 # Inicio, Notas, Buscar y Perfil
+│       │   ├── dashboard.tsx
+│       │   ├── notes.tsx
+│       │   ├── search.tsx
+│       │   └── profile.tsx
+│       ├── notes/                  # Detalle, editor y creación
+│       ├── categories/             # Creación de categorías
+│       ├── profile/                # Edición del perfil
+│       ├── settings.tsx
+│       └── change-password.tsx
 ├── components/
 │   ├── ui/                       # Button, Input, PasswordInput, Card...
 │   ├── common/                   # BrandMark, FlowLinesBackground
 │   └── layouts/                  # AuthLayout, AppLayout
 ├── features/
 │   ├── auth/                     # Provider, servicio, esquemas y UI de auth
-│   ├── notes/                    # Tipos del dominio de notas
-│   └── profile/                  # Tipos del perfil del estudiante
+│   ├── notes/                    # Tipos, consultas, mutaciones y UI de notas
+│   └── profile/                  # Tipos, consultas y actualización del perfil
 ├── hooks/                        # useAppTheme, useResponsive
 ├── lib/
 │   ├── cn.ts
@@ -160,16 +171,29 @@ directamente.
 ```text
 /                    -> redirige a /(auth)/welcome
 /(auth)/welcome      -> bienvenida temporal, Comenzar abre Login
-/(auth)/login        -> inicio de sesión Email/Password
+/(auth)/login        -> inicio de sesión Email/Password o Google
 /(auth)/register     -> registro Email/Password y perfil inicial
 /(auth)/forgot-password -> solicita enlace de recuperación
 /(auth)/reset-password -> establece una nueva contraseña desde el enlace
-/(protected)/home    -> pantalla temporal "Tu espacio está listo"
+/(protected)/home      -> redirección compatible al dashboard Inicio
+/(protected)/dashboard -> dashboard personal (tab Inicio)
+/(protected)/notes     -> notas, filtros y acciones rápidas
+/(protected)/search    -> búsqueda instantánea y filtros
+/(protected)/profile   -> perfil, configuración y cierre de sesión
+/notes/new             -> editor para crear una nota
+/notes/[id]            -> detalle de nota
+/notes/[id]/edit       -> editor de nota existente
+/categories/new        -> alta de categoría
+/settings              -> tema, cuenta e información de la app
+/auth/callback       -> intercambio del código OAuth por una sesión PKCE
 ```
 
 - `(auth)` redirige usuarios con sesión a `(protected)`.
 - `(protected)` requiere una sesión restaurada.
-- La pantalla protegida actual incluye cierre de sesión.
+- Los datos de notas, categorías y perfil se consultan en Supabase para el
+  usuario autenticado; no se incluyen registros de muestra.
+- Favorito, fijado y archivado aplican actualización optimista y restauran el
+  estado anterior si Supabase responde con error.
 
 ## Autenticación con Supabase
 
@@ -189,7 +213,178 @@ tokens para compatibilidad con enlaces existentes.
 El registro envía nombre, apellido y username como metadata de Auth. Un trigger
 de base de datos crea el perfil atómicamente incluso cuando se exige confirmar
 el email. La recuperación llega a `/(auth)/reset-password`, donde se establece
-la nueva contraseña.
+la nueva contraseña. Google OAuth usa el mismo cliente Supabase PKCE, y el
+trigger de `auth.users` crea el perfil; la app no duplica esa operación.
+
+### Notas y categorías: SQL pendiente de ejecutar
+
+El siguiente SQL crea las tablas de categorías y notas, sus índices, RLS,
+permisos y trigger de actualización. Se apoya en `public.profiles` y en la
+sesión Supabase ya configuradas; **no se ejecuta automáticamente desde la app**.
+Ejecuta una sola vez en SQL Editor cuando apruebes el esquema.
+
+```sql
+create table if not exists public.categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 40),
+  color text not null default '#6366F1'
+    check (color ~ '^#[0-9A-Fa-f]{6}$'),
+  icon text not null default 'folder'
+    check (icon in ('folder', 'book', 'work', 'science', 'ideas')),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists categories_user_name_lower_idx
+  on public.categories (user_id, lower(name));
+create index if not exists categories_user_created_idx
+  on public.categories (user_id, created_at desc);
+
+create table if not exists public.notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  category_id uuid references public.categories (id) on delete set null,
+  title text not null check (char_length(btrim(title)) between 1 and 120),
+  content text not null default '',
+  color text not null default '#6366F1'
+    check (color ~ '^#[0-9A-Fa-f]{6}$'),
+  is_favorite boolean not null default false,
+  is_pinned boolean not null default false,
+  is_archived boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists notes_user_updated_idx
+  on public.notes (user_id, updated_at desc);
+create index if not exists notes_user_category_idx
+  on public.notes (user_id, category_id);
+create index if not exists notes_user_favorites_idx
+  on public.notes (user_id, updated_at desc)
+  where is_favorite and not is_archived;
+create index if not exists notes_user_pinned_idx
+  on public.notes (user_id, updated_at desc)
+  where is_pinned and not is_archived;
+create index if not exists notes_user_archived_idx
+  on public.notes (user_id, updated_at desc)
+  where is_archived;
+
+alter table public.categories enable row level security;
+alter table public.notes enable row level security;
+
+revoke all on table public.categories, public.notes from anon, authenticated;
+grant select, insert, update, delete on table public.categories to authenticated;
+grant select, insert, update, delete on table public.notes to authenticated;
+
+drop policy if exists "Categories are readable by owner" on public.categories;
+create policy "Categories are readable by owner"
+  on public.categories for select to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Categories are insertable by owner" on public.categories;
+create policy "Categories are insertable by owner"
+  on public.categories for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Categories are editable by owner" on public.categories;
+create policy "Categories are editable by owner"
+  on public.categories for update to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Categories are deletable by owner" on public.categories;
+create policy "Categories are deletable by owner"
+  on public.categories for delete to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Notes are readable by owner" on public.notes;
+create policy "Notes are readable by owner"
+  on public.notes for select to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Notes are insertable by owner" on public.notes;
+create policy "Notes are insertable by owner"
+  on public.notes for insert to authenticated
+  with check (
+    (select auth.uid()) = user_id
+    and (
+      category_id is null
+      or exists (
+        select 1 from public.categories as category
+        where category.id = category_id
+          and category.user_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "Notes are editable by owner" on public.notes;
+create policy "Notes are editable by owner"
+  on public.notes for update to authenticated
+  using ((select auth.uid()) = user_id)
+  with check (
+    (select auth.uid()) = user_id
+    and (
+      category_id is null
+      or exists (
+        select 1 from public.categories as category
+        where category.id = category_id
+          and category.user_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "Notes are deletable by owner" on public.notes;
+create policy "Notes are deletable by owner"
+  on public.notes for delete to authenticated
+  using ((select auth.uid()) = user_id);
+
+create or replace function public.set_note_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists on_note_updated on public.notes;
+create trigger on_note_updated
+  before update on public.notes
+  for each row execute procedure public.set_note_updated_at();
+```
+
+La app consulta los perfiles existentes en `public.profiles`. El perfil debe
+haber sido creado por el trigger de Auth documentado arriba; no se crea ni
+actualiza una fila de perfil durante el flujo de notas.
+
+### Google OAuth en móvil
+
+Al pulsar **Continuar con Google**, Supabase genera la URL del proveedor, se
+abre en el navegador del sistema y la app procesa el callback con
+`exchangeCodeForSession()`. El intercambio se centraliza para evitar procesar
+dos veces el mismo código cuando coinciden el deep-link listener y la ruta.
+
+- La URI de callback de Development Build es
+  `studentnotes://auth/callback` (usa el scheme ya declarado en `app.json`).
+- Expo Go genera un callback dinámico basado en la dirección actual de Metro,
+  normalmente `exp://<host>:<port>/--/auth/callback`. Añade a Supabase la URI
+  exacta que produzca la sesión de desarrollo; puede cambiar al cambiar el host
+  o iniciar Metro con otra modalidad de red.
+- En **Supabase → Authentication → URL Configuration → Redirect URLs**, permite
+  la URI de Development Build y la URI dinámica de Expo Go que estés usando.
+- En **Supabase → Authentication → Providers → Google**, configura las
+  credenciales de un cliente OAuth de tipo Web. En Google Cloud, el redirect
+  URI autorizado del cliente Web debe ser el callback que muestra Supabase en
+  la configuración del proveedor (no `studentnotes://...`).
+- No se necesita un cliente OAuth nativo de Android/iOS para este flujo
+  mediado por Supabase. Un scheme estable requiere una app instalada, por lo que
+  prueba `studentnotes://auth/callback` con un Development Build; Expo Go usa
+  su URL dinámica.
+- `app.json` registra el plugin de `expo-web-browser`; después de cambiar
+  configuración nativa, reinicia Metro y reconstruye el Development Build si
+  corresponde.
 
 ### SQL exacto para `public.profiles` y RLS
 
@@ -345,15 +540,19 @@ create trigger on_profile_updated
    si se debe confirmar el email.
 4. En **Authentication → URL Configuration → Redirect URLs**, permite
    `studentnotes://**`. Para Expo Go local, añade la URL `exp://...` concreta
-   que imprime Metro; no uses un wildcard amplio en producción.
+   que imprime Metro; para probar en navegador permite también el origen local
+   exacto con `/auth/callback` (por ejemplo, `http://localhost:8081/auth/callback`
+   si Metro usa ese puerto). No uses un wildcard amplio en producción.
 5. Configura las plantillas y un proveedor SMTP de producción para confirmación
    y recuperación. El enlace de recuperación apunta a
    `studentnotes:///reset-password`.
 6. Ejecuta el SQL anterior. Si el trigger falla, Supabase revierte el alta del
    usuario y la app presenta el error.
 
-`react-native-reanimated` no está instalado; la UI de autenticación no requiere
-animaciones para completar los flujos.
+Para probar Google OAuth en navegador, ejecuta `npm run web`. En web, la app
+redirige al proveedor y vuelve a `/auth/callback` en el mismo origen; el flujo
+nativo continúa usando `studentnotes://auth/callback` y `expo-web-browser`.
+La URL exacta de retorno del navegador debe estar permitida en Supabase Auth.
 
 ## Decisiones arquitectónicas
 
@@ -364,15 +563,17 @@ animaciones para completar los flujos.
    La lógica de negocio no vive en las rutas.
 3. **Tokens semánticos**: cambiar la paleta o añadir un tema nuevo se hace en
    `global.css`, no en los componentes.
-4. **Sin dependencias prematuras**: no se añadió React Query; Auth usa el estado
-   de sesión propio de Supabase. El CRUD podrá elegir caché cuando exista.
+4. **Sin dependencias prematuras**: no se añadió React Query. Las consultas
+   usan el cliente Supabase existente y actualizaciones optimistas acotadas a
+   flags de nota.
 5. **Rendimiento Android**: fondo SVG estático, sin animaciones, listas futuras
    deberán usar FlashList/FlatList, y se evitan sombras/blur innecesarios.
 6. **Mobile first real**: padding responsive (20dp en pantallas compactas,
    24dp en el resto), targets táctiles de al menos 48dp, contenido centrado y
    limitado a 520dp en tablets.
-7. **Tipos de dominio listos**: `Note`, `NoteDraft` y `StudentProfile` siguen
-   como contratos sin implementar CRUD; Auth usa el tipo `Session` del SDK.
+7. **Datos tipados por dominio**: `Note`, `NoteDraft`, `NoteCategory` y
+   `StudentProfile` reflejan el esquema SQL y mantienen el mapeo de Supabase
+   fuera de las pantallas.
 
 ## Paquetes añadidos
 
@@ -391,6 +592,9 @@ Producción:
 | `@hookform/resolvers` | 7.0.5 | Integración de Zod con React Hook Form |
 | `@supabase/supabase-js` | 2.119.0 | Cliente de Supabase y Auth |
 | `expo-secure-store` | 58.0.2 | Persistencia cifrada de sesión en Android/iOS |
+| `expo-web-browser` | 58.0.7 | Sesión del navegador para OAuth y retorno a la app |
+| `react-native-web` | 0.21.4 | Renderizado React Native en navegador |
+| `@expo/metro-runtime` | 58.0.17 | Runtime requerido por Expo Router en web |
 | `react-native-url-polyfill` | 4.0.0 | APIs URL requeridas por Supabase en React Native |
 
 Desarrollo:
@@ -405,7 +609,7 @@ Desarrollo:
 
 - `package.json`: `main` apunta a `expo-router/entry`.
 - `app.json`: `scheme: "studentnotes"`, `userInterfaceStyle: "automatic"` y
-  `experiments.typedRoutes: true`; Expo añadió el plugin `expo-secure-store`.
+  `experiments.typedRoutes: true`; plugins para SecureStore y WebBrowser.
 - `metro.config.js`: `withUniwindConfig` envuelve la configuración de Metro y
   apunta a `src/global.css`; genera `src/uniwind-types.d.ts` al arrancar Metro.
 - `tsconfig.json`: alias `@/*` hacia `src/*` e inclusión de tipos de Expo Router
@@ -434,9 +638,53 @@ npx expo-doctor
 La primera vez que se arranca Metro se genera `src/uniwind-types.d.ts`. Es
 necesario para que TypeScript conozca las clases disponibles.
 
+## Auditoría visual y motion
+
+Mejoras aplicadas en la pasada de experiencia:
+
+- La bienvenida usa una composición abstracta de libreta, sin apuntes de
+  ejemplo ni contenido que parezca información real del usuario.
+- Las rutas de autenticación usan la misma transición lateral nativa que las
+  rutas privadas. El stack protegido ya animaba las pantallas de detalle,
+  creación y configuración, por lo que se conservó.
+- Los botones tienen una respuesta de escala breve con `Animated` y driver
+  nativo. Favoritos, fijado, archivado y opciones de tema tienen feedback de
+  pulsación; los cambios optimistas siguen usando la lógica existente.
+- Los skeletons tienen un brillo discreto con `Animated` y driver nativo; la
+  carga de más resultados reutiliza el mismo placeholder.
+- Los estados vacíos ahora priorizan el mensaje y la siguiente acción, y las
+  notas distinguen entre listas sin favoritas, fijadas o archivadas.
+- El perfil presenta avatar/fallback, proveedor e información de cuenta en un
+  bloque visual único; también evita reemplazar el avatar con un botón de error
+  durante una recarga fallida. Configuración mantiene sus opciones y destaca
+  el acceso a cambio de contraseña.
+
+No se instalaron dependencias: `react-native-reanimated` y
+`lottie-react-native` no están declarados en el proyecto. Las animaciones nuevas
+usan `Animated` de React Native, son breves y delegan transformaciones al driver
+nativo. El fondo Flow Lines continúa estático para evitar trabajo constante en
+pantallas de contenido.
+
+### Revisión de `assets/animations/*.json`
+
+| Asset | Composición | Decisión |
+| --- | --- | --- |
+| `Notas de estudiante.json` | Libreta, 512×512, 3 capas, 2 s | La mejor candidata para bienvenida; no se reproduce sin el paquete Lottie. |
+| `not-found-notess.json` | Barco y nubes, 610×495, 8 capas, 2 s | No usar: metáfora visual poco relacionada con notas académicas. |
+| `loading.json` | Forma simple, 400×400, 1 capa, 1.5 s | No usar: un spinner genérico es inferior al skeleton contextual. |
+| `loading-second.json` | Círculos, 1080×1080, 5 capas, 2 s | No usar: carga genérica y lienzo innecesariamente grande. |
+| `comprobación de éxito.json` | Marca de verificación, 500×500, 2 capas, 2 s | Adecuada para éxito si se incorpora Lottie en el futuro; no hay flujo que la necesite ahora. |
+| `error.json` | Icono de error, 32×32, 2 capas, 1.4 s | No usar: resolución pequeña y no mejora el mensaje accesible. |
+| `archivo doc.json` | Documento, 2160×2160, 5 capas, 3 s | No usar: asset genérico de gran tamaño. |
+| `Profile Avatar for Child.json` | Avatar, 400×400, 4 capas, 12 s | No usar: estilo infantil y duración larga para el perfil. |
+
+No se añaden dependencias ni se cambia la configuración de autenticación,
+Supabase, OAuth, deep linking o providers en esta auditoría.
+
 ## Próximos pasos
 
-1. Añadir pruebas de integración para Auth, recuperación y guardas de rutas.
-2. Decidir si se incorpora OAuth de Google.
-3. Implementar CRUD de notas y sincronización de perfiles.
-4. Persistir la preferencia del tema (`setMode` ya está listo).
+1. Validar visualmente en Android real con anchos de 360–430dp y en ambos temas.
+2. Añadir pruebas de integración para Auth, recuperación, guardas de rutas y
+   operaciones de notas una vez disponible un entorno de Supabase de prueba.
+3. Considerar persistir la preferencia del tema sin modificar el flujo actual
+   hasta definir almacenamiento y migración.

@@ -49,7 +49,7 @@ export function ScreenContainer({
   return (
     <StyledSafeAreaView
       edges={edges}
-      className={className}
+      {...(className === undefined ? {} : { className })}
       style={[
         styles.root,
         {

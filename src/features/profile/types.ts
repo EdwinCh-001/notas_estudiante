@@ -1,11 +1,17 @@
 export interface StudentProfile {
   id: string;
-  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  username: string;
   email: string;
-  avatarUrl?: string;
-  institution?: string;
-  career?: string;
-  semester?: number;
+  provider: string;
+  avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProfileDraft {
+  firstName: string;
+  lastName: string;
+  username: string;
 }

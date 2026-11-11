@@ -17,5 +17,12 @@ export default function AuthGroupLayout() {
     return <Redirect href="/(protected)/home" />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    />
+  );
 }

@@ -31,16 +31,19 @@ selecciona otro puerto, registra el puerto que muestra la terminal en Supabase.
 | Ruta | Uso |
 | --- | --- |
 | `/` | Solicitar un enlace de recuperación |
+| `/auth/callback` | Intercambiar el código OAuth PKCE y crear una sesión web |
 | `/verify-email` | Verificar dirección de correo desde token Supabase |
 | `/reset-password` | Validar enlace y sesión de recuperación |
 | `/update-password` | Establecer y confirmar una nueva contraseña |
-| `/auth-success` | Resultado correcto; callback PKCE disponible para OAuth futuro |
+| `/auth-success` | Resultado correcto tras OAuth o actualización de contraseña |
 | `/auth-error` | Estado de error reutilizable |
 
 El portal consume `token_hash` y `type` directamente mediante `verifyOtp`, por
 lo que el callback no depende de compartir la sesión/almacenamiento de Expo con
-el navegador. Los callbacks por código PKCE y por access/refresh token también
-se reconocen cuando Supabase los entrega.
+el navegador. El callback OAuth web intercambia el parámetro `code` mediante
+`exchangeCodeForSession` en el mismo cliente Supabase PKCE, persiste la sesión
+web y navega al resultado. Los callbacks por código PKCE y por access/refresh
+token también se reconocen cuando Supabase los entrega.
 
 ## Supabase Authentication
 
@@ -54,10 +57,13 @@ se reconocen cuando Supabase los entrega.
    - Desarrollo: `http://localhost:5173/verify-email`,
      `http://localhost:5173/reset-password`,
      `http://localhost:5173/update-password`,
+     `http://localhost:5173/auth/callback`,
      `http://localhost:5173/auth-success` y
      `http://localhost:5173/auth-error`.
    - Producción: las mismas rutas bajo el dominio exacto asignado o conectado
      en Vercel. No uses un dominio inventado; añádelo después del deployment.
+     Incluye también `/auth/callback` bajo el dominio real del portal para el
+     retorno de Google OAuth.
 3. En **Authentication → Email Templates**, configura confirmación y
    recuperación para abrir el portal con el token hash:
 

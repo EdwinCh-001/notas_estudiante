@@ -16,11 +16,14 @@ import {
 } from '@/lib/supabase/client';
 
 import {
+  exchangeOAuthCodeForSession,
   sendPasswordResetEmail,
   signInWithEmail,
+  signInWithGoogle,
   signOut,
   signUpWithEmail,
   updatePassword,
+  type GoogleOAuthResult,
   type SignInCredentials,
   type SignUpDetails,
 } from './authService';
@@ -32,6 +35,7 @@ export interface AuthContextValue {
   configurationError: string | null;
   initializationError: AuthOperationError | null;
   signIn: (credentials: SignInCredentials) => Promise<void>;
+  signInWithGoogle: () => Promise<GoogleOAuthResult>;
   signUp: (
     details: SignUpDetails,
     redirectTo?: string,
@@ -73,12 +77,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const code = searchParams.get('code');
 
         if (code) {
-          const { error } = await client.auth.exchangeCodeForSession(code);
-
-          if (error) {
-            throw error;
-          }
-
+          await exchangeOAuthCodeForSession(code);
           return;
         }
 
@@ -198,6 +197,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     (credentials: SignInCredentials) => signInWithEmail(credentials),
     [],
   );
+  const handleGoogleSignIn = useCallback(() => signInWithGoogle(), []);
 
   const signUp = useCallback(
     (details: SignUpDetails, redirectTo?: string) =>
@@ -224,6 +224,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       configurationError: configured ? null : missingConfigurationMessage,
       initializationError,
       signIn,
+      signInWithGoogle: handleGoogleSignIn,
       signUp,
       requestPasswordReset,
       updatePassword: handleUpdatePassword,
@@ -235,6 +236,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       configured,
       initializationError,
       signIn,
+      handleGoogleSignIn,
       signUp,
       requestPasswordReset,
       handleUpdatePassword,

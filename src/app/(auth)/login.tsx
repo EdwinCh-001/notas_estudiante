@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { ArrowRight, LockKeyhole, Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -15,8 +15,11 @@ import { useAppTheme } from '@/hooks';
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
-  const { signIn } = useAuth();
+  const router = useRouter();
+  const { signIn, signInWithGoogle } = useAuth();
   const [errorMessage, setErrorMessage] = useState('');
+  const [googleMessage, setGoogleMessage] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const {
     control,
     handleSubmit,
@@ -35,6 +38,27 @@ export default function LoginScreen() {
       setErrorMessage(toAuthOperationError(error).message);
     }
   });
+
+  const onGoogleSignIn = async () => {
+    setGoogleMessage('');
+    setIsGoogleLoading(true);
+
+    try {
+      const result = await signInWithGoogle();
+      if (result.type === 'cancelled' || result.type === 'redirecting') {
+        return;
+      }
+
+      router.replace({
+        pathname: '/auth/callback',
+        params: { callbackUrl: result.callbackUrl },
+      });
+    } catch (error) {
+      setGoogleMessage(toAuthOperationError(error).message);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   return (
     <AuthPage
@@ -117,6 +141,7 @@ export default function LoginScreen() {
         <Button
           fullWidth
           label="Continuar con Google"
+          loading={isGoogleLoading}
           leftIcon={
             <Image
               accessibilityLabel="Google"
@@ -125,9 +150,12 @@ export default function LoginScreen() {
               style={{ width: 20, height: 20 }}
             />
           }
-          onPress={() => undefined}
+          onPress={() => void onGoogleSignIn()}
           variant="outline"
         />
+        {googleMessage ? (
+          <AuthMessage message={googleMessage} />
+        ) : null}
 
         <Card className="flex-row items-center justify-center gap-1" padding="sm">
           <Text className="text-label text-muted-foreground">

@@ -36,7 +36,7 @@ export default function AuthSuccessPage() {
     );
 
     if (!hasCallback) {
-      if (reason === 'password-updated') {
+      if (reason === 'password-updated' || reason === 'google-oauth') {
         setState('success');
       } else {
         setMessage('No encontramos una respuesta de autenticación en este enlace.');

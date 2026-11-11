@@ -22,6 +22,7 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="index" options={{ animation: 'none' }} />
+        <Stack.Screen name="auth/callback" options={{ animation: 'none' }} />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(protected)" />
       </Stack>

@@ -8,17 +8,34 @@ import { getAuthErrorMessage, isExpiredAuthError } from '../lib/auth';
 export default function AuthErrorPage() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
+  const navigationState = location.state;
+  const stateMessage =
+    typeof navigationState === 'object' &&
+    navigationState !== null &&
+    'message' in navigationState &&
+    typeof navigationState.message === 'string'
+      ? navigationState.message
+      : null;
+  const stateExpired =
+    typeof navigationState === 'object' &&
+    navigationState !== null &&
+    'expired' in navigationState &&
+    typeof navigationState.expired === 'boolean'
+      ? navigationState.expired
+      : null;
   const rawError =
     params.get('error_description') ?? params.get('error') ?? params.get('message');
   const error = rawError ? new Error(rawError) : null;
-  const expired = error ? isExpiredAuthError(error) : false;
-  const message = error
-    ? getAuthErrorMessage(error)
-    : 'La solicitud no pudo completarse. Vuelve al portal para iniciar un nuevo flujo.';
+  const expired = stateExpired ?? (error ? isExpiredAuthError(error) : false);
+  const message =
+    stateMessage ??
+    (error
+      ? getAuthErrorMessage(error)
+      : 'La solicitud no pudo completarse. Vuelve al portal para iniciar un nuevo flujo.');
 
   return (
     <AuthCard
-      description="Tu seguridad es lo primero. No se realizaron cambios en la cuenta."
+      description="No pudimos confirmar que la solicitud de autenticación se completara correctamente."
       eyebrow="NO SE PUDO COMPLETAR"
       icon={<CircleAlert aria-hidden="true" className="text-danger" size={21} />}
       title={expired ? 'El enlace ha caducado' : 'Algo salió mal'}

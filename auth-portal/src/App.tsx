@@ -4,6 +4,7 @@ import { PortalLayout } from './components/PortalLayout';
 import AuthErrorPage from './pages/AuthErrorPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import HomePage from './pages/HomePage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import UpdatePasswordPage from './pages/UpdatePasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
@@ -26,6 +27,7 @@ export default function App() {
     <PortalLayout>
       <Routes>
         <Route element={<HomePage />} path="/" />
+        <Route element={<OAuthCallbackPage />} path="/auth/callback" />
         <Route element={<VerifyEmailPage />} path="/verify-email" />
         <Route element={<ResetPasswordPage />} path="/reset-password" />
         <Route element={<UpdatePasswordPage />} path="/update-password" />
