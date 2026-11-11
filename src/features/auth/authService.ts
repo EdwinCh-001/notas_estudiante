@@ -39,13 +39,14 @@ export async function signInWithGoogle(): Promise<GoogleOAuthResult> {
     const redirectTo = isWeb
       ? new URL('/auth/callback', window.location.origin).toString()
       : Linking.createURL('auth/callback');
-    console.log('[Google OAuth] redirectTo:', redirectTo);
+    const options = {
+      redirectTo,
+      skipBrowserRedirect: true,
+    };
+    console.info('[Google OAuth] requested redirectTo:', redirectTo);
     const { data, error } = await getSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo,
-        skipBrowserRedirect: true,
-      },
+      options,
     });
 
     if (error) {
@@ -55,6 +56,32 @@ export async function signInWithGoogle(): Promise<GoogleOAuthResult> {
     if (!data.url) {
       throw new AuthOperationError(
         'Supabase no devolvió la dirección para iniciar sesión con Google.',
+      );
+    }
+
+    const authorizationUrl = new URL(data.url);
+    const returnedRedirectTo = authorizationUrl.searchParams.get('redirect_to');
+    const sanitizedAuthorizationUrl = new URL(authorizationUrl);
+    for (const parameter of ['state', 'code_challenge']) {
+      if (sanitizedAuthorizationUrl.searchParams.has(parameter)) {
+        sanitizedAuthorizationUrl.searchParams.set(parameter, '[redacted]');
+      }
+    }
+
+    console.info(
+      '[Google OAuth] data.url (state and PKCE challenge redacted):',
+      sanitizedAuthorizationUrl.toString(),
+    );
+    console.info('[Google OAuth] redirect_to returned by Supabase:', returnedRedirectTo);
+
+    const normalizedRequestedRedirectTo = new URL(redirectTo).href;
+    const normalizedReturnedRedirectTo = returnedRedirectTo
+      ? new URL(returnedRedirectTo).href
+      : null;
+
+    if (normalizedReturnedRedirectTo !== normalizedRequestedRedirectTo) {
+      throw new AuthOperationError(
+        `Supabase devolvió redirect_to "${returnedRedirectTo ?? '(ausente)'}" en lugar de "${redirectTo}". Verifica la lista Authentication > URL Configuration > Redirect URLs.`,
       );
     }
 
